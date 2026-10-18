@@ -527,9 +527,12 @@ export function useWhiteboard(options: {
   }, []);
 
   const centerBounds=useCallback((b:{x:number;y:number;width:number;height:number})=>{const canvas=canvasRef.current;if(!canvas)return;const scale=viewRef.current.scale;setView({tx:(canvas.clientWidth-b.width*scale)/2-b.x*scale,ty:(canvas.clientHeight-b.height*scale)/2-b.y*scale,scale});scheduleRender();},[setView,scheduleRender]);
-  const fitToBounds = useCallback((b:{x:number;y:number;width:number;height:number})=>{
+  const fitToBounds = useCallback((b:{x:number;y:number;width:number;height:number}, padding = 0)=>{
     const canvas=canvasRef.current;if(!canvas||b.width<=0||b.height<=0)return;
-    const scale=clamp(Math.min(canvas.clientWidth/b.width,canvas.clientHeight/b.height),MIN_SCALE,MAX_SCALE);
+    const pad = Math.max(0, padding);
+    const availW = Math.max(100, canvas.clientWidth - pad * 2);
+    const availH = Math.max(100, canvas.clientHeight - pad * 2);
+    const scale=clamp(Math.min(availW/b.width,availH/b.height),MIN_SCALE,MAX_SCALE);
     setView({tx:(canvas.clientWidth-b.width*scale)/2-b.x*scale,ty:(canvas.clientHeight-b.height*scale)/2-b.y*scale,scale});scheduleRender();
   },[setView,scheduleRender]);
   const fitToContent = useCallback(() => {
@@ -542,11 +545,11 @@ export function useWhiteboard(options: {
       resetView();
       return;
     }
-    const pad = 60;
+    const pad = 40;
     const scale = clamp(
       Math.min((cssW - pad * 2) / b.w, (cssH - pad * 2) / b.h),
       MIN_SCALE,
-      1.5,
+      MAX_SCALE,
     );
     const tx = (cssW - b.w * scale) / 2 - b.x * scale;
     const ty = (cssH - b.h * scale) / 2 - b.y * scale;

@@ -1,7 +1,7 @@
 "use client";
 import {ThemeIcon as Icon} from "./ThemeIcon";
 import "./SlidesPanel.css";
-export function PageBar({pageIndex,pageCount,onAdd,onGo,onToggleThumbs,thumbsOpen,onSwap}: {pageIndex:number;pageCount:number;onAdd:()=>void;onGo:(index:number)=>void;onToggleThumbs:()=>void;thumbsOpen:boolean;onSwap:()=>void;}) {
+export function PageBar({pageIndex,pageCount,onAdd,onGo,onToggleThumbs,thumbsOpen,onSwap,onApplyViewToAll,onFitToScreen}: {pageIndex:number;pageCount:number;onAdd:()=>void;onGo:(index:number)=>void;onToggleThumbs:()=>void;thumbsOpen:boolean;onSwap:()=>void;onApplyViewToAll?:()=>void;onFitToScreen?:()=>void;}) {
   return <nav className="kn-page-navigation pointer-events-auto" aria-label="Page navigation">
     <button className="kn-focus kn-page-add" onClick={onAdd} aria-label="Add page" title="Add page"><Icon name="plus"/></button>
 
@@ -10,6 +10,8 @@ export function PageBar({pageIndex,pageCount,onAdd,onGo,onToggleThumbs,thumbsOpe
     <button className="kn-focus" onClick={()=>onGo(pageIndex-1)} disabled={pageIndex<=0} aria-label="Previous page" title="Previous page"><Icon name="chevronLeft"/></button>
     <button className="kn-focus kn-page-counter" onClick={onToggleThumbs} aria-label="Open slides" aria-expanded={thumbsOpen} title="Pages"><Icon name="layers"/><strong>{pageIndex+1} / {pageCount}</strong></button>
     <button className="kn-focus" onClick={()=>onGo(pageIndex+1)} disabled={pageIndex>=pageCount-1} aria-label="Next page" title="Next page"><Icon name="chevronRight"/></button>
+    {onFitToScreen && <button className="kn-focus" onClick={onFitToScreen} aria-label="Fit slide to screen" title="Fit slide to screen"><Icon name="fit"/></button>}
+    {onApplyViewToAll && <button className="kn-focus kn-page-sync" onClick={onApplyViewToAll} aria-label="Apply zoom and alignment to all slides" title="Apply this zoom and alignment to all slides"><Icon name="sync"/></button>}
     <button className="kn-side-switch kn-focus" onClick={onSwap} aria-label="Swap menu and slide controls" title="Swap sides"><Icon name="flipHorizontal"/></button>
   </nav>;
 }

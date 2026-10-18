@@ -74,6 +74,30 @@ export async function localRequest(path: string, options: RequestInit = {}): Pro
             await tx.objectStore('notebooks').put({...notebook,updatedAt:now});
             result = json({pages:ordered});
           }
+        } else if (parts[3] === 'pages' && parts[4] === 'layout' && method === 'PUT') {
+          const updates = body.pages as Array<{id:string;media?:Page['media'];importFrame?:Page['importFrame']}>;
+          if (!Array.isArray(updates)) {
+            result = json({error:'Updates array expected'},400);
+          } else {
+            const byId = new Map(pages.map(page => [page.id,page]));
+            for (const item of updates) {
+              const existing = byId.get(item.id);
+              if (existing) {
+                const importFrame = item.importFrame;
+                if (importFrame && (![importFrame.x,importFrame.y,importFrame.width,importFrame.height].every(Number.isFinite)||importFrame.width<=0||importFrame.height<=0||importFrame.width>100000||importFrame.height>100000)) continue;
+                const updated: Page = {
+                  ...existing,
+                  media: Array.isArray(item.media) ? item.media : existing.media,
+                  importFrame: importFrame ?? existing.importFrame,
+                  updatedAt: now,
+                };
+                await tx.objectStore('pages').put(updated);
+                byId.set(item.id, updated);
+              }
+            }
+            await tx.objectStore('notebooks').put({...notebook,updatedAt:now});
+            result = json({pages:pages.map(p => byId.get(p.id) || p)});
+          }
         } else if (parts[3] === 'pages' && method === 'POST') {
           const after=body.afterPageId;
           const insertion=after===undefined?pages.length:pages.findIndex(page=>page.id===after)+1;

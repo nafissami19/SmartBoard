@@ -1,7 +1,8 @@
 import {Capacitor} from '@capacitor/core';
 let opening=false;
 function route(){
- const native=location.protocol==='file:'||Capacitor.isNativePlatform()||matchMedia('(display-mode: standalone)').matches||(navigator as Navigator & {standalone?:boolean}).standalone===true;
+ const isDev=location.hostname==='127.0.0.1'||location.hostname==='localhost';
+ const native=location.protocol==='file:'||Capacitor.isNativePlatform()||matchMedia('(display-mode: standalone)').matches||(navigator as Navigator & {standalone?:boolean}).standalone===true||(isDev&&!location.search.includes('landing'));
  if(!native&&!location.hash.startsWith('#/')){if(opening)location.reload();return;}
  if(opening)return;opening=true;
  const message=document.getElementById('app-load-message');if(message)message.textContent='Please wait...';

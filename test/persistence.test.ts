@@ -40,6 +40,7 @@ test('three recovery generations restore a lesson after its main database is cle
   const id=await create();
   const {pages}=await (await localRequest(`/api/notebooks/${id}`)).json();
   for(let version=1;version<=4;version++){
+    await new Promise(r=>setTimeout(r,5));
     await write(`/api/pages/${pages[0].id}`,{objects:[{id:'text',kind:'text',text:`Version ${version}`,x:0,y:0,color:'#10151b',fontSize:24,fontFamily:'Arial',bold:false}]},'PUT');
     const result=await saveRecovery(id);assert.equal(result.external,false);
   }

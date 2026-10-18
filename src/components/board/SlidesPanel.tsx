@@ -45,7 +45,7 @@ const SlideThumbnail=memo(function SlideThumbnail({page,frame}:{page:Page;frame:
   return <canvas ref={ref} width={1} height={1} style={{aspectRatio:`${frame.width}/${frame.height}`}} aria-hidden="true"/>;
 });
 
-export function SlidesPanel({previewFrames,pages,activePageId,onGo,onReorder,onClose,onAdd,onDuplicate,onDelete,onSwap}:{previewFrames?:Record<string,PreviewFrame>;pages:Page[];activePageId:string;onGo:(index:number)=>void;onReorder:(ids:string[])=>Promise<void>;onClose:()=>void;onAdd:()=>void;onDuplicate?:(index:number)=>void;onDelete:(index:number)=>Promise<void>;onSwap:()=>void}){
+export function SlidesPanel({previewFrames,pages,activePageId,onGo,onReorder,onClose,onAdd,onDuplicate,onDelete,onSwap,onApplyViewToAll,applyingView,viewSync,onToggleViewSync}:{previewFrames?:Record<string,PreviewFrame>;pages:Page[];activePageId:string;onGo:(index:number)=>void;onReorder:(ids:string[])=>Promise<void>;onClose:()=>void;onAdd:()=>void;onDuplicate?:(index:number)=>void;onDelete:(index:number)=>Promise<void>;onSwap:()=>void;onApplyViewToAll?:()=>void;applyingView?:boolean;viewSync?:boolean;onToggleViewSync?:()=>void}){
   const [menuOpen,setMenuOpen]=useState(false);
   const pageById=new Map(pages.map(page=>[page.id,page]));
   const activeIndex=Math.max(0,pages.findIndex(page=>page.id===activePageId));
@@ -101,7 +101,27 @@ export function SlidesPanel({previewFrames,pages,activePageId,onGo,onReorder,onC
       <button className="kn-focus" aria-label="Slide panel options" aria-expanded={menuOpen} title="Slide panel options" onClick={()=>setMenuOpen(value=>!value)}><Icon name="settings"/></button>
       <button className="kn-focus" aria-label="Close slides" title="Close slides" onClick={onClose}><Icon name="close"/></button>
     </header>
-    {menuOpen&&<div className="kn-slides-actions"><button className="kn-focus" aria-label="Compact slide list" title="Compact slide list" aria-pressed={compact} onClick={()=>setCompact(value=>!value)}><Icon name="layers"/></button><button className="kn-focus" onClick={()=>setLarge(value=>!value)} aria-pressed={large} aria-label="Larger slide previews" title="Larger previews"><Icon name="zoomIn"/></button><button className="kn-focus" onClick={onSwap} aria-label="Swap slide panel side" title="Swap sides"><Icon name="flipHorizontal"/></button></div>}
+    {onApplyViewToAll && (
+      <div className="kn-slides-sync-strip">
+        <button type="button" className="kn-sync-btn kn-focus" disabled={busy || applyingView} onClick={onApplyViewToAll} title="Apply this zoom and alignment to all slides">
+          <Icon name="sync" style={{width:15,height:15}}/>
+          <span>{applyingView ? 'Applying...' : `Apply view to all (${pages.length})`}</span>
+        </button>
+        {onToggleViewSync && (
+          <label className="kn-sync-lock" title="Keep zoom and alignment locked while navigating slides">
+            <input type="checkbox" checked={viewSync} onChange={onToggleViewSync}/>
+            <span>Lock</span>
+          </label>
+        )}
+      </div>
+    )}
+    {menuOpen&&<div className="kn-slides-actions">
+      <button className="kn-focus" aria-label="Compact slide list" title="Compact slide list" aria-pressed={compact} onClick={()=>setCompact(value=>!value)}><Icon name="layers"/></button>
+      <button className="kn-focus" onClick={()=>setLarge(value=>!value)} aria-pressed={large} aria-label="Larger slide previews" title="Larger previews"><Icon name="zoomIn"/></button>
+      <button className="kn-focus" onClick={onSwap} aria-label="Swap slide panel side" title="Swap sides"><Icon name="flipHorizontal"/></button>
+      {onApplyViewToAll && <button className="kn-focus" onClick={onApplyViewToAll} aria-label="Apply current zoom and position to all slides" title="Apply current zoom and position to all slides"><Icon name="fit"/></button>}
+      {onToggleViewSync && <button className="kn-focus" onClick={onToggleViewSync} aria-pressed={viewSync} aria-label="Lock zoom and position across slides" title={viewSync ? "Sync view across slides: ON (click to disable)" : "Sync view across slides: OFF (click to enable)"}><Icon name="sync"/></button>}
+    </div>}
     <div className="kn-slides-list" aria-busy={busy}>
       {order.map((id,index)=>{const page=pageById.get(id);if(!page)return null;return <div key={id} data-slide-id={id} className={`kn-slide-row ${id===activePageId?'is-active':''} ${id===dragId?'is-dragging':''}`} onContextMenu={event=>event.preventDefault()} onPointerDown={event=>begin(event,id)} onPointerMove={move} onPointerUp={event=>finish(event)} onPointerCancel={event=>finish(event,true)}>
         <button className="kn-slide-handle kn-focus" aria-label={`Reorder slide ${index+1}`} title="Drag to reorder. Arrow keys move this slide." disabled={busy} onPointerDown={event=>{event.stopPropagation();begin(event,id,true);}} onPointerMove={event=>{event.stopPropagation();move(event);}} onPointerUp={event=>{event.stopPropagation();finish(event);}} onPointerCancel={event=>{event.stopPropagation();finish(event,true);}} onKeyDown={event=>{

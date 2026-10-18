@@ -1,4 +1,4 @@
-﻿.kn-page-navigation{display:flex;align-items:center;gap:3px;border:1px solid #aab4be;border-radius:14px;background:#f2f4f6;color:#203344;padding:5px;box-shadow:0 5px 20px #0002}
+.kn-page-navigation{display:flex;align-items:center;gap:3px;border:1px solid #aab4be;border-radius:14px;background:#f2f4f6;color:#203344;padding:5px;box-shadow:0 5px 20px #0002}
 .kn-page-navigation button{display:flex;align-items:center;justify-content:center;gap:4px;min-width:40px;min-height:44px;padding:5px 8px;border-radius:9px;font-size:11px;font-weight:650}
 .kn-page-navigation svg{width:21px;height:21px;flex-shrink:0}.kn-page-navigation button:hover:not(:disabled){background:#dbe3e9}.kn-page-navigation button:disabled{opacity:.4}.kn-page-navigation .kn-page-counter{flex-direction:column;gap:0;min-width:65px}.kn-page-counter strong{font-size:14px;font-variant-numeric:tabular-nums}.kn-page-navigation .kn-page-add{background:#526677;color:white}
 .kn-slides-panel{position:fixed;left:12px;top:84px;bottom:90px;width:240px;max-width:calc(100vw - 24px);z-index:45;display:flex;flex-direction:column;background:#f8fafb;color:#203344;border:1px solid #b8c3cd;border-radius:16px;box-shadow:0 12px 36px #0003;overflow:hidden}
@@ -12,3 +12,10 @@
 
 /* Match the board frame rather than stretching every page into a 16:9 tile. */
 .kn-slide-preview canvas{height:auto!important;max-height:none;object-fit:contain}
+.kn-slides-sync-strip{display:flex;align-items:center;gap:6px;padding:6px 8px;margin:4px 8px 6px;background:#e8eff5;border:1px solid #b8c8d8;border-radius:8px;flex-shrink:0}
+.kn-slides-sync-strip .kn-sync-btn{display:flex;align-items:center;justify-content:center;gap:6px;flex:1;min-height:34px;padding:4px 8px;background:#203344;color:#ffffff;border-radius:6px;font-size:11px;font-weight:600;border:none;cursor:pointer}
+.kn-slides-sync-strip .kn-sync-btn:hover{background:#34495e}
+.kn-slides-sync-strip .kn-sync-lock{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:#203344;cursor:pointer;user-select:none;padding:0 2px}
+.kn-page-navigation .kn-page-sync{background:#203344;color:white}
+.kn-page-navigation .kn-page-sync:hover{background:#34495e}
+

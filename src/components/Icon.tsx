@@ -73,6 +73,7 @@ export const ICON_PATHS = {
   play: ["M6 4l14 8-14 8V4z"],
   pause: ["M6 4h4v16H6z", "M14 4h4v16h-4z"],
   reset: ["M3 12a9 9 0 109-9 9 9 0 00-9 9z", "M3 3v6h6"],
+  sync: ["M21.5 2v6h-6", "M2.5 22v-6h6", "M2 11.5a10 10 0 0 1 18.8-4.3L21.5 8", "M22 12.5a10 10 0 0 1-18.8 4.2L2.5 16"],
   pages: ["M4 4h9l3 3v13H4z", "M11 4v3h3"],
 } satisfies Record<string, string[]>;
 

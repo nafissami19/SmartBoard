@@ -6,7 +6,7 @@ import {BoardChemistryLayer,EquipmentControls} from '@/components/board/BoardChe
 import {createEquipment,isEquipment,VESSELS,type Vessel} from '@/lib/chemistry-equipment';
 import {MenuScreenContext} from '@/components/board/MenuScreen';
 import {warmPdfPages} from '@/lib/media';
-import {checkpoint,acknowledge,lastWorkActivity,setWorkActivity,unfinishedEdits,recordSession,finishSession,savedPageView,type EditCheckpoint,type PageEdit} from '@/lib/work-journal';
+import {checkpoint,acknowledge,lastWorkActivity,setWorkActivity,unfinishedEdits,recordSession,finishSession,savedPageView,savedLessonDefaultView,saveLessonDefaultView,savedLessonDefaultFrame,saveLessonDefaultFrame,applyViewToAllPages,isViewSyncEnabled,setViewSyncEnabled,type EditCheckpoint,type PageEdit} from '@/lib/work-journal';
 import {LoadingOverlay} from '@/components/LoadingOverlay';
 import {interfaceSettings} from '@/lib/interface-settings';
 import {newPageStyle} from '@/lib/new-page-style';
@@ -168,11 +168,136 @@ export default function BoardPage() {
     onDraftChange:handleDraftChange,
   });
 
+  const [viewSync, setViewSync] = useState(() => isViewSyncEnabled(id));
+  const [applyingView, setApplyingView] = useState(false);
+
+  const handleApplyViewToAll = useCallback(async () => {
+    if (applyingView) return;
+    setApplyingView(true);
+    try {
+      await flushSave();
+      const currentMedia = wb.media;
+      const currentDoc = currentMedia.find(m => ['pdf', 'image', 'docx'].includes(m.kind)) ?? currentMedia[0];
+      const targetFrame = currentDoc
+        ? { x: currentDoc.x, y: currentDoc.y, width: currentDoc.width, height: currentDoc.height }
+        : (frameRef.current ?? null);
+
+      if (targetFrame) {
+        frameRef.current = targetFrame;
+        saveLessonDefaultFrame(id, targetFrame);
+      }
+
+      let nextPages = pages;
+      if (currentDoc && targetFrame) {
+        const sourceAspect = (currentDoc.width > 0 && currentDoc.height > 0) ? currentDoc.width / currentDoc.height : 0;
+        nextPages = pages.map(p => {
+          if (p.id === pageIdRef.current) {
+            return { ...p, media: currentMedia, importFrame: targetFrame };
+          }
+          if (!p.media || p.media.length === 0) {
+            return { ...p, importFrame: targetFrame };
+          }
+          const targetDoc = p.media.find(m => m.assetId === currentDoc.assetId) ??
+                            p.media.find(m => m.kind === currentDoc.kind) ??
+                            p.media[0];
+          if (!targetDoc) {
+            return { ...p, importFrame: targetFrame };
+          }
+
+          const targetAspect = (targetDoc.width > 0 && targetDoc.height > 0) ? targetDoc.width / targetDoc.height : 0;
+          let w = targetFrame.width;
+          let h = targetFrame.height;
+          let x = targetFrame.x;
+          let y = targetFrame.y;
+
+          if (targetAspect > 0 && sourceAspect > 0 && Math.abs(targetAspect - sourceAspect) > 0.05) {
+            const scale = Math.min(targetFrame.width / targetDoc.width, targetFrame.height / targetDoc.height);
+            w = targetDoc.width * scale;
+            h = targetDoc.height * scale;
+            x = targetFrame.x + (targetFrame.width - w) / 2;
+            y = targetFrame.y + (targetFrame.height - h) / 2;
+          }
+
+          const updatedMedia = p.media.map(m => m.id === targetDoc.id ? {
+            ...m,
+            x,
+            y,
+            width: w,
+            height: h,
+            rotation: currentDoc.rotation ?? 0,
+            mirrorX: currentDoc.mirrorX,
+            mirrorY: currentDoc.mirrorY,
+          } : m);
+
+          return { ...p, media: updatedMedia, importFrame: targetFrame };
+        });
+
+        const res = await localRequest(`/api/notebooks/${id}/pages/layout`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            pages: nextPages.map(p => ({
+              id: p.id,
+              media: p.media,
+              importFrame: p.importFrame,
+            })),
+          }),
+        });
+
+        if (res.ok) {
+          const data = (await res.json()) as { pages?: Page[] };
+          if (Array.isArray(data.pages)) {
+            nextPages = data.pages;
+          }
+        } else {
+          for (const p of nextPages) {
+            await localRequest(`/api/pages/${p.id}`, {
+              method: 'PUT',
+              body: JSON.stringify({ media: p.media, importFrame: p.importFrame }),
+            }).catch(() => {});
+          }
+        }
+        setPages(nextPages);
+      }
+
+      if (wb.view) {
+        applyViewToAllPages(id, pages.map(p => p.id), wb.view);
+      }
+
+      if (currentDoc) {
+        push(`Applied slide position, size (${Math.round(currentDoc.width)}×${Math.round(currentDoc.height)}), and zoom to all ${pages.length} slides.`, 'success');
+      } else if (wb.view) {
+        push(`Applied ${Math.round(wb.view.scale * 100)}% zoom and position to all ${pages.length} slides.`, 'success');
+      }
+    } catch {
+      push('Could not apply alignment to all slides. Please try again.', 'error');
+    } finally {
+      setApplyingView(false);
+    }
+  }, [applyingView, flushSave, wb.media, wb.view, id, pages, push]);
+
+  const toggleViewSync = useCallback(() => {
+    setViewSync(prev => {
+      const next = !prev;
+      setViewSyncEnabled(id, next);
+      if (next) {
+        void handleApplyViewToAll();
+        push('View sync enabled. All slides locked to current alignment and zoom.', 'success');
+      } else {
+        push('View sync disabled. Slides can have independent views.', 'info');
+      }
+      return next;
+    });
+  }, [id, handleApplyViewToAll, push]);
+
   // -------------------------------- loading --------------------------------
 
   const [previewSize,setPreviewSize]=useState({width:1280,height:720});
   useEffect(()=>{const canvas=wb.canvasRef.current;if(!canvas)return;let frame=0;const update=()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{const width=canvas.clientWidth,height=canvas.clientHeight;if(width&&height)setPreviewSize(previous=>previous.width===width&&previous.height===height?previous:{width,height});});};const observer=new ResizeObserver(update);observer.observe(canvas);update();return()=>{observer.disconnect();cancelAnimationFrame(frame);};},[loading]);
-  const previewFrames=useMemo(()=>Object.fromEntries(pages.map(page=>{const view=page.id===currentPage?.id?wb.view:savedPageView(page.id)??{tx:0,ty:0,scale:1};return [page.id,{x:-view.tx/view.scale,y:-view.ty/view.scale,width:previewSize.width/view.scale,height:previewSize.height/view.scale,zoom:view.scale}];})), [pages,currentPage?.id,wb.view,previewSize]);
+  const previewFrames=useMemo(()=>Object.fromEntries(pages.map(page=>{
+    const defaultV = savedLessonDefaultView(id);
+    const view=page.id===currentPage?.id?wb.view:(isViewSyncEnabled(id)?(defaultV??wb.view??savedPageView(page.id)):(savedPageView(page.id)??defaultV))??{tx:0,ty:0,scale:1};
+    return [page.id,{x:-view.tx/view.scale,y:-view.ty/view.scale,width:previewSize.width/view.scale,height:previewSize.height/view.scale,zoom:view.scale}];
+  })), [pages,currentPage?.id,wb.view,previewSize,id,viewSync]);
   const loadPageIntoBoard = useCallback(
     (i: number, list: Page[]) => {
       const pg = list[i];
@@ -187,12 +312,47 @@ export default function BoardPage() {
       setBackground(pg.background || "#111214");
       setPattern(pg.pattern || "none");
       pageImageRef.current=pg.backgroundImage;setPageImage(pg.backgroundImage);
-      wb.reset(pg.objects ?? [], pg.media ?? []);
-      const view=savedPageView(pg.id);
-      if(view)wb.restoreView(view);
-      else if(pg.importFrame)window.setTimeout(()=>{if(pageIdRef.current===pg.id)wb.centerBounds(pg.importFrame!);},100);
+      const syncOn = isViewSyncEnabled(id);
+      const defaultView = savedLessonDefaultView(id);
+      const defaultFrame = savedLessonDefaultFrame(id);
+      let mediaToLoad = pg.media ?? [];
+
+      if (syncOn && defaultFrame && mediaToLoad.length > 0) {
+        const doc = mediaToLoad.find(m => ['pdf', 'image', 'docx'].includes(m.kind)) ?? mediaToLoad[0];
+        if (doc && (Math.abs(doc.x - defaultFrame.x) > 1 || Math.abs(doc.y - defaultFrame.y) > 1 || Math.abs(doc.width - defaultFrame.width) > 2 || Math.abs(doc.height - defaultFrame.height) > 2)) {
+          const docAspect = (doc.width > 0 && doc.height > 0) ? doc.width / doc.height : 0;
+          const frameAspect = defaultFrame.width / defaultFrame.height;
+          let w = defaultFrame.width;
+          let h = defaultFrame.height;
+          let x = defaultFrame.x;
+          let y = defaultFrame.y;
+          if (docAspect > 0 && Math.abs(docAspect - frameAspect) > 0.05) {
+            const scale = Math.min(defaultFrame.width / doc.width, defaultFrame.height / doc.height);
+            w = doc.width * scale;
+            h = doc.height * scale;
+            x = defaultFrame.x + (defaultFrame.width - w) / 2;
+            y = defaultFrame.y + (defaultFrame.height - h) / 2;
+          }
+          mediaToLoad = mediaToLoad.map(m => m.id === doc.id ? { ...m, x, y, width: w, height: h } : m);
+          frameRef.current = defaultFrame;
+        }
+      }
+
+      const view = syncOn
+        ? (defaultView ?? wb.view ?? savedPageView(pg.id))
+        : (savedPageView(pg.id) ?? defaultView);
+      wb.reset(pg.objects ?? [], mediaToLoad, !view);
+      if (view) {
+        wb.restoreView(view);
+      } else if (pg.importFrame) {
+        window.setTimeout(() => {
+          if (pageIdRef.current === pg.id) {
+            wb.fitToBounds(pg.importFrame!, 40);
+          }
+        }, 100);
+      }
     },
-    [wb],
+    [wb, id, notebook?.title],
   );
 
   useEffect(() => {
@@ -225,8 +385,13 @@ export default function BoardPage() {
 
   useEffect(()=>{
     if(loading||!currentPage)return;
-    try{localStorage.setItem('kopy-view:'+currentPage.id,JSON.stringify(wb.view));}catch{}
-  },[loading,currentPage?.id,wb.view]);
+    try{
+      localStorage.setItem('kopy-view:'+currentPage.id,JSON.stringify(wb.view));
+      if (viewSync) {
+        saveLessonDefaultView(id, wb.view);
+      }
+    }catch{}
+  },[loading,currentPage?.id,wb.view,viewSync,id]);
   useEffect(()=>{
     const neighbors=[...(pages[index-1]?.media??[]),...(pages[index+1]?.media??[])].filter(m=>m.kind==='pdf');
     for(const media of currentPage?.media??[])if(media.kind==='pdf')for(const number of [media.pageNumber-1,media.pageNumber+1])if(number>0&&number<=(media.numPages??0))neighbors.push({...media,pageNumber:number});
@@ -601,8 +766,17 @@ export default function BoardPage() {
               onClick={wb.fitToContent}
               className="kn-focus grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-elevated hover:text-ink"
               aria-label="Fit to screen"
+              title="Fit to screen"
             >
               <Icon name="fit" className="h-5 w-5" />
+            </button>
+            <button
+              onClick={handleApplyViewToAll}
+              className="kn-focus grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-elevated hover:text-ink"
+              aria-label="Apply zoom and alignment to all slides"
+              title={`Apply this zoom (${Math.round(wb.view.scale * 100)}%) and position to all ${pages.length} slides`}
+            >
+              <Icon name="sync" className="h-5 w-5" />
             </button>
             <div className="mx-1 h-6 w-px bg-line" />
             <div className="hidden items-center gap-2 px-1 text-sm text-muted sm:flex">
@@ -769,7 +943,8 @@ export default function BoardPage() {
 
         {thumbsOpen && <SlidesPanel previewFrames={previewFrames} pages={pages} activePageId={currentPage?.id??''}
           onGo={i=>{void goTo(i).catch(()=>push('Could not save your edits. Keep this slide open.','error'));}}
-          onReorder={reorderPages} onClose={()=>setThumbsOpen(false)} onAdd={addPage} onDuplicate={duplicatePage} onDelete={deletePage} onSwap={()=>setSlidesSide(side=>side==='left'?'right':'left')}/>}
+          onReorder={reorderPages} onClose={()=>setThumbsOpen(false)} onAdd={addPage} onDuplicate={duplicatePage} onDelete={deletePage} onSwap={()=>setSlidesSide(side=>side==='left'?'right':'left')}
+          onApplyViewToAll={handleApplyViewToAll} applyingView={applyingView} viewSync={viewSync} onToggleViewSync={toggleViewSync}/>}
 
         {/* Bottom toolbar + page bar */}
         <div className="board-toolbar" data-layout={toolbarLayout}>
@@ -799,6 +974,8 @@ export default function BoardPage() {
             onSwap={()=>setSlidesSide(side=>side==='left'?'right':'left')}
             onToggleThumbs={() => {setPanel(null);setThumbsOpen((o) => !o);}}
             thumbsOpen={thumbsOpen}
+            onApplyViewToAll={handleApplyViewToAll}
+            onFitToScreen={wb.fitToContent}
           />
         </div>
 

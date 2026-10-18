@@ -4,9 +4,14 @@
 <!-- Decide before styles, assets or application modules load. -->
 <script>
 (function () {
+ var isDev = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
  var nativeApp = location.protocol === 'file:' ||
    (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) ||
-   window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+   window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true ||
+   (isDev && !location.search.includes('landing'));
+ if (isDev && !location.hash.startsWith('#/') && !location.search.includes('landing')) {
+  location.hash = '#/app';
+ }
  function showLoader() {
   if (nativeApp || location.hash.indexOf('#/') === 0) document.documentElement.classList.add('app-open');
  }
